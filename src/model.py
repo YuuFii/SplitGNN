@@ -198,27 +198,53 @@ class MultiRelationSplitGNNLayer(nn.Module):
         h = self.liner(h)
         return h
     
+    def contrastive_loss(self, pos_scores, neg_scores, mrgin=1.0):
+        loss = torch.mean(F.relu(mrgin - pos_scores) + F.relu(neg_scores))
+        return loss
+    
+    # def loss(self, g, h):
+    #     with g.local_scope():
+    #         g.ndata['feat'] = h
+    #         agg_h = self.forward(g,h)
+
+    #         g.apply_edges(self.score_edges, etype='homo')
+    #         edges_score = g.edges['homo'].data['score']
+    #         edge_train_mask = g.edges['homo'].data['train_mask'].bool()
+    #         edge_train_label = g.edges['homo'].data['label'][edge_train_mask]
+    #         edge_train_pos = edge_train_label == 1
+    #         edge_train_neg = edge_train_label == -1
+    #         edge_train_pos_index = edge_train_pos.nonzero().flatten().detach().cpu().numpy()
+    #         edge_train_neg_index = edge_train_neg.nonzero().flatten().detach().cpu().numpy()
+    #         edge_train_pos_index = np.random.choice(edge_train_pos_index, size=len(edge_train_neg_index))
+    #         index = np.concatenate([edge_train_pos_index, edge_train_neg_index])
+    #         index.sort()
+    #         edge_train_score = edges_score[edge_train_mask]
+    #         # hinge loss
+    #         edge_diff_loss = hinge_loss(edge_train_label[index], edge_train_score[index])
+
+    #         return agg_h, edge_diff_loss
+        
     def loss(self, g, h):
         with g.local_scope():
             g.ndata['feat'] = h
-            agg_h = self.forward(g,h)
+            agg_h = self.forward(g, h)
 
             g.apply_edges(self.score_edges, etype='homo')
             edges_score = g.edges['homo'].data['score']
             edge_train_mask = g.edges['homo'].data['train_mask'].bool()
             edge_train_label = g.edges['homo'].data['label'][edge_train_mask]
+            
+            # Separate positive and negative pairs
             edge_train_pos = edge_train_label == 1
             edge_train_neg = edge_train_label == -1
-            edge_train_pos_index = edge_train_pos.nonzero().flatten().detach().cpu().numpy()
-            edge_train_neg_index = edge_train_neg.nonzero().flatten().detach().cpu().numpy()
-            edge_train_pos_index = np.random.choice(edge_train_pos_index, size=len(edge_train_neg_index))
-            index = np.concatenate([edge_train_pos_index, edge_train_neg_index])
-            index.sort()
-            edge_train_score = edges_score[edge_train_mask]
-            # hinge loss
-            edge_diff_loss = hinge_loss(edge_train_label[index], edge_train_score[index])
-
-            return agg_h, edge_diff_loss
+            
+            pos_scores = edges_score[edge_train_mask][edge_train_pos]
+            neg_scores = edges_score[edge_train_mask][edge_train_neg]
+            
+            # Calculate contrastive loss
+            contrastive_loss = self.contrastive_loss(pos_scores, neg_scores)
+            
+            return agg_h, contrastive_loss
             
     def score_edges(self, edges):
         src = edges.src['feat']
