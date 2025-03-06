@@ -199,6 +199,10 @@ class MultiRelationSplitGNNLayer(nn.Module):
         return h
     
     def contrastive_loss(self, pos_scores, neg_scores, mrgin=1.0):
+        min_samples = min(pos_scores.size(0), neg_scores.size(0))
+        pos_scores = pos_scores[:min_samples]
+        neg_scores = neg_scores[:min_samples]
+        
         loss = torch.mean(F.relu(mrgin - pos_scores) + F.relu(neg_scores))
         return loss
     
