@@ -1,7 +1,7 @@
 # train parameters
 dataset: 'yelp'
 seed: 30
-epoch: 500
+epoch: 300
 early_stop: 100
 lr: 0.01
 weight_decay: 0.00005
